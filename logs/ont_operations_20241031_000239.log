@@ -1,0 +1,9 @@
+2024-10-31 00:02:39,444 - HuaweiOLT - INFO - Iniciando conexão com OLT 172.16.0.21
+2024-10-31 00:02:47,486 - HuaweiOLT - INFO - Conectado com sucesso à OLT 172.16.0.21
+2024-10-31 00:02:47,486 - HuaweiOLT - INFO - Configurando interface GPON 0/2
+2024-10-31 00:02:49,489 - HuaweiOLT - INFO - Interface configurada: GPON 0/2
+2024-10-31 00:02:49,490 - HuaweiOLT - INFO - Iniciando reset da ONT 2/16
+2024-10-31 00:02:54,497 - HuaweiOLT - INFO - ONT 2/16 resetada com sucesso
+2024-10-31 00:02:54,497 - HuaweiOLT - INFO - Aguardando 10 segundos para a ONT reiniciar...
+2024-10-31 00:03:04,508 - HuaweiOLT - INFO - Verificando status da ONT 2/16
+2024-10-31 00:03:06,511 - HuaweiOLT - INFO - Conexão encerrada

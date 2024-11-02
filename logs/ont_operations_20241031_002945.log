@@ -1,0 +1,122 @@
+2024-10-31 00:29:45,953 - HuaweiOLT - INFO - Iniciando conexão com OLT 172.16.0.8
+2024-10-31 00:29:45,953 - HuaweiOLT - DEBUG - Parâmetros de conexão: porta=22, usuário=lidia
+2024-10-31 00:29:45,953 - HuaweiOLT - DEBUG - Estabelecendo conexão SSH...
+2024-10-31 00:29:46,791 - HuaweiOLT - DEBUG - Iniciando shell interativo...
+2024-10-31 00:29:48,809 - HuaweiOLT - DEBUG - Entrando no modo enable...
+2024-10-31 00:29:48,809 - HuaweiOLT - DEBUG - Enviando comando: enable
+2024-10-31 00:29:50,813 - HuaweiOLT - DEBUG - Recebido chunk de dados: 212 bytes
+2024-10-31 00:29:50,813 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:29:50,813 - HuaweiOLT - DEBUG - Comando: enable
+2024-10-31 00:29:50,814 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:29:50,814 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,814 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,815 - HuaweiOLT - DEBUG -     Huawei Integrated Access Software (MA5800).
+2024-10-31 00:29:50,815 - HuaweiOLT - DEBUG -     Copyright(C) Huawei Technologies Co., Ltd. 2002-2017. All rights reserved.
+2024-10-31 00:29:50,815 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,816 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,816 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO>enable 
+2024-10-31 00:29:50,816 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,817 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO#
+2024-10-31 00:29:50,817 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:29:50,817 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:29:50,818 - HuaweiOLT - DEBUG - Comando Enable: enable
+2024-10-31 00:29:50,818 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:29:50,818 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,818 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,819 - HuaweiOLT - DEBUG -     Huawei Integrated Access Software (MA5800).
+2024-10-31 00:29:50,819 - HuaweiOLT - DEBUG -     Copyright(C) Huawei Technologies Co., Ltd. 2002-2017. All rights reserved.
+2024-10-31 00:29:50,819 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,819 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,819 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO>enable 
+2024-10-31 00:29:50,820 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:50,820 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO#
+2024-10-31 00:29:50,820 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:29:51,821 - HuaweiOLT - DEBUG - Entrando no modo config...
+2024-10-31 00:29:51,822 - HuaweiOLT - DEBUG - Enviando comando: config
+2024-10-31 00:29:53,827 - HuaweiOLT - DEBUG - Recebido chunk de dados: 53 bytes
+2024-10-31 00:29:53,827 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:29:53,828 - HuaweiOLT - DEBUG - Comando: config
+2024-10-31 00:29:53,828 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:29:53,828 - HuaweiOLT - DEBUG -   config 
+2024-10-31 00:29:53,828 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:53,828 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO(config)#
+2024-10-31 00:29:53,828 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:29:53,829 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:29:53,829 - HuaweiOLT - DEBUG - Comando Config: config
+2024-10-31 00:29:53,829 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:29:53,829 - HuaweiOLT - DEBUG -   config 
+2024-10-31 00:29:53,829 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:53,830 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO(config)#
+2024-10-31 00:29:53,830 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:29:53,830 - HuaweiOLT - INFO - Conectado com sucesso à OLT 172.16.0.8
+2024-10-31 00:29:53,830 - HuaweiOLT - INFO - Configurando interface GPON 0/2
+2024-10-31 00:29:53,831 - HuaweiOLT - DEBUG - Enviando comando: interface gpon 0/2
+2024-10-31 00:29:55,834 - HuaweiOLT - DEBUG - Recebido chunk de dados: 77 bytes
+2024-10-31 00:29:55,835 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:29:55,835 - HuaweiOLT - DEBUG - Comando: interface gpon 0/2
+2024-10-31 00:29:55,836 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:29:55,836 - HuaweiOLT - DEBUG -   interface gpon 0/2 
+2024-10-31 00:29:55,836 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:55,837 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO(config-if-gpon-0/2)#
+2024-10-31 00:29:55,837 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:29:55,837 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:29:55,837 - HuaweiOLT - DEBUG - Comando Interface: interface gpon 0/2
+2024-10-31 00:29:55,837 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:29:55,838 - HuaweiOLT - DEBUG -   interface gpon 0/2 
+2024-10-31 00:29:55,838 - HuaweiOLT - DEBUG -   
+2024-10-31 00:29:55,838 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO(config-if-gpon-0/2)#
+2024-10-31 00:29:55,838 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:29:55,838 - HuaweiOLT - INFO - Interface configurada: GPON 0/2
+2024-10-31 00:29:55,838 - HuaweiOLT - INFO - Iniciando reset da ONT 2/0
+2024-10-31 00:29:55,839 - HuaweiOLT - DEBUG - Executando comando: ont reset 2 0
+2024-10-31 00:29:57,842 - HuaweiOLT - DEBUG - Enviando confirmação 'y'
+2024-10-31 00:30:00,847 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:30:00,847 - HuaweiOLT - DEBUG - Comando Reset: ont reset 2 0 (com confirmação)
+2024-10-31 00:30:00,847 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:30:00,848 - HuaweiOLT - DEBUG -   ont reset 2 0 
+2024-10-31 00:30:00,848 - HuaweiOLT - DEBUG -     Resetting the ONT(s) will interrupt all services on the ONT(s)
+2024-10-31 00:30:00,848 - HuaweiOLT - DEBUG -     Are you sure to reset the ONT(s)? (y/n)[n]: y
+2024-10-31 00:30:00,848 - HuaweiOLT - DEBUG -   
+2024-10-31 00:30:00,848 - HuaweiOLT - DEBUG -   004-OLT-PE-PAULISTA-JARPAU_ACESSO(config-if-gpon-0/2)#
+2024-10-31 00:30:00,849 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:30:00,849 - HuaweiOLT - INFO - ONT 2/0 resetada com sucesso
+2024-10-31 00:30:00,849 - HuaweiOLT - INFO - Aguardando 10 segundos para a ONT reiniciar...
+2024-10-31 00:30:10,859 - HuaweiOLT - INFO - Verificando status da ONT 2/0
+2024-10-31 00:30:10,860 - HuaweiOLT - DEBUG - Executando comando: display ont info 2 0
+2024-10-31 00:30:10,861 - HuaweiOLT - DEBUG - Enviando comando: display ont info 2 0
+2024-10-31 00:30:12,864 - HuaweiOLT - DEBUG - Recebido chunk de dados: 38 bytes
+2024-10-31 00:30:12,864 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:30:12,865 - HuaweiOLT - DEBUG - Comando: display ont info 2 0
+2024-10-31 00:30:12,865 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:30:12,866 - HuaweiOLT - DEBUG -   display ont info 2 0 
+2024-10-31 00:30:12,866 - HuaweiOLT - DEBUG -   { <cr>||<K> }: 
+2024-10-31 00:30:12,867 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:30:12,867 - HuaweiOLT - DEBUG - 
+--------------------------------------------------
+2024-10-31 00:30:12,867 - HuaweiOLT - DEBUG - Comando Status: display ont info 2 0
+2024-10-31 00:30:12,867 - HuaweiOLT - DEBUG - Resposta:
+2024-10-31 00:30:12,867 - HuaweiOLT - DEBUG -   display ont info 2 0 
+2024-10-31 00:30:12,867 - HuaweiOLT - DEBUG -   { <cr>||<K> }: 
+2024-10-31 00:30:12,868 - HuaweiOLT - DEBUG - --------------------------------------------------
+
+2024-10-31 00:30:12,868 - HuaweiOLT - DEBUG - Status não encontrado na saída
+2024-10-31 00:30:12,868 - HuaweiOLT - DEBUG - Saída completa:
+2024-10-31 00:30:12,868 - HuaweiOLT - DEBUG - display ont info 2 0 
+{ <cr>||<K> }: 
+2024-10-31 00:30:12,869 - HuaweiOLT - INFO - Conexão encerrada

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# huawei-ont-tool - Script para execução no host
+# Arquivo: lideri/huawei-ont-tool
+
+# Função para mostrar ajuda
+show_help() {
+    echo "Huawei ONT Management Tool"
+    echo "Uso: $0 COMANDO HOST FRAME SLOT PORT ONT USERNAME PASSWORD"
+    echo ""
+    echo "Comandos disponíveis:"
+    echo "  restart    - Reinicia uma ONT específica"
+    echo ""
+    echo "Exemplo:"
+    echo "  $0 restart 192.168.1.10 0 1 2 1 admin senha123"
+}
+
+# Verifica argumentos
+if [ "$#" -lt 8 ]; then
+    show_help
+    exit 1
+fi
+
+# Executa o container com os argumentos fornecidos
+docker-compose run --rm ont-manager huawei-ont-manager.sh "$@"
