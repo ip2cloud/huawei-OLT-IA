@@ -1,23 +1,21 @@
-version: '3.8'
-
 services:
   ont-manager:
+    image: ${IMAGE_NAME:-ont-manager}:${IMAGE_TAG:-latest}
+    platform: ${PLATFORM:-linux/arm64}
     build:
       context: .
       dockerfile: Dockerfile
     container_name: ont-manager
     environment:
       - TZ=America/Sao_Paulo
+      - PYTHONPATH=/app/manager/src
     restart: "no"
     ports:
-      - "2222:22" 
+      - "2222:22"
     networks:
       - ont-network
-      - lideri_databases
 
 networks:
   ont-network:
+    name: ont-network
     driver: bridge
-  lideri_databases:
-    external: true
-    name: lideri_databases

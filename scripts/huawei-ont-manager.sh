@@ -2,27 +2,21 @@
 
 # Função para mostrar ajuda
 show_help() {
-    echo "Uso: $0 COMANDO HOST FRAME SLOT PORT ONT USERNAME PASSWORD [-v|--verbose]"
+    echo "Huawei ONT Management Tool"
+    echo "Uso: $0 COMANDO HOST FRAME SLOT ONTS USERNAME PASSWORD [-v|--verbose]"
     echo ""
     echo "Comandos disponíveis:"
-    echo "  reset    - Reseta uma ONT específica"
+    echo "  reset    - Reseta ONTs específicas"
     echo ""
-    echo "Exemplo:"
-    echo "  $0 reset 192.168.1.10 0 1 2 1 admin senha123 --verbose"
+    echo "Exemplo para uma única ONT:"
+    echo "  $0 reset 192.168.1.10 0 1 '[{\"port\":2,\"ont\":16}]' admin senha123 --verbose"
     echo ""
-    echo "Parâmetros:"
-    echo "  HOST      - Endereço IP da OLT"
-    echo "  FRAME     - ID do Frame (Chassi)"
-    echo "  SLOT      - ID do Slot"
-    echo "  PORT      - ID da Porta"
-    echo "  ONT       - ID da ONT"
-    echo "  USERNAME  - Usuário para login"
-    echo "  PASSWORD  - Senha para login"
-    echo "  -v, --verbose  - Modo verbose com logs detalhados"
+    echo "Exemplo para múltiplas ONTs:"
+    echo "  $0 reset 192.168.1.10 0 1 '[{\"port\":2,\"ont\":16},{\"port\":2,\"ont\":17}]' admin senha123 --verbose"
 }
 
-# Verifica se há argumentos suficientes
-if [ "$#" -lt 8 ]; then
+# Verifica argumentos
+if [ "$#" -lt 7 ]; then
     show_help
     exit 1
 fi
@@ -32,15 +26,10 @@ COMMAND=$1
 HOST=$2
 FRAME=$3
 SLOT=$4
-PORT=$5
-ONT=$6
-USERNAME=$7
-PASSWORD=$8
-VERBOSE=${9:-""}  # Nono argumento opcional
-
-# Cria diretório de logs se não existir
-mkdir -p /app/lideri/logs
-chmod 777 /app/lideri/logs
+ONTS=$5
+USERNAME=$6
+PASSWORD=$7
+VERBOSE=${8:-""}
 
 # Configura o verbose flag
 VERBOSE_FLAG=""
@@ -51,13 +40,11 @@ fi
 # Executa o comando apropriado
 case $COMMAND in
     "reset")
-        echo "Executando reset com logs em /app/lideri/logs/"
         python /app/lideri/huawei_ont_manager.py \
             --host "$HOST" \
             --frame "$FRAME" \
             --slot "$SLOT" \
-            --port "$PORT" \
-            --ont "$ONT" \
+            --onts "$ONTS" \
             --username "$USERNAME" \
             --password "$PASSWORD" \
             $VERBOSE_FLAG

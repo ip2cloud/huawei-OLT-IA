@@ -1,25 +1,44 @@
 #!/bin/bash
 
-# huawei-ont-tool - Script para execução no host
-# Arquivo: lideri/huawei-ont-tool
+# Script wrapper para execução no host
+# Arquivo: manager/huawei-ont-tool
 
 # Função para mostrar ajuda
 show_help() {
     echo "Huawei ONT Management Tool"
-    echo "Uso: $0 COMANDO HOST FRAME SLOT PORT ONT USERNAME PASSWORD"
     echo ""
-    echo "Comandos disponíveis:"
-    echo "  restart    - Reinicia uma ONT específica"
+    echo "Uso para ONT única:"
+    echo "  $0 reset -o HOST FRAME SLOT PORT ONT USERNAME PASSWORD [-v|--verbose]"
     echo ""
-    echo "Exemplo:"
-    echo "  $0 restart 192.168.1.10 0 1 2 1 admin senha123"
+    echo "Uso para lote de ONTs:"
+    echo "  $0 reset -l HOST FRAME SLOT ONTS USERNAME PASSWORD [-v|--verbose]"
+    echo ""
+    echo "Parâmetros:"
+    echo "  -o          Modo ONT única"
+    echo "  -l          Modo lote de ONTs"
+    echo "  HOST        Endereço IP da OLT"
+    echo "  FRAME       ID do Frame (Chassi)"
+    echo "  SLOT        ID do Slot"
+    echo "  PORT        ID da Porta (apenas modo única)"
+    echo "  ONT         ID da ONT (apenas modo única)"
+    echo "  ONTS        Lista de ONTs em JSON (apenas modo lote)"
+    echo "  USERNAME    Usuário para login"
+    echo "  PASSWORD    Senha para login"
+    echo "  -v          Modo verbose"
+    echo ""
+    echo "Exemplos:"
+    echo "  ONT única:"
+    echo "    $0 reset -o ip_olt 0 2 2 16 user_olt senha_olt -v"
+    echo ""
+    echo "  Lote de ONTs:"
+    echo "    $0 reset -l ip_olt 0 2 '[{\"port\":2,\"ont\":16},{\"port\":2,\"ont\":17}]' lidia lidia2024 -v"
 }
 
-# Verifica argumentos
-if [ "$#" -lt 8 ]; then
+# Verifica se tem argumentos suficientes
+if [ "$#" -lt 2 ]; then
     show_help
     exit 1
 fi
 
 # Executa o container com os argumentos fornecidos
-docker-compose run --rm ont-manager huawei-ont-manager.sh "$@"
+docker compose exec ont-manager huawei-ont-manager.sh "$@"

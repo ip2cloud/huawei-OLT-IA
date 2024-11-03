@@ -174,57 +174,83 @@ class HuaweiOLT:
                 self.logger.debug("Stack trace:", exc_info=True)
             return False
 
-    def reset_ont(self, port_id: int, ont_id: int) -> bool:
+    def reset_multiple_onts(self, ont_list: List[Dict]) -> Dict:
         """
-        Reseta uma ONT específica na interface GPON atual
+        Reseta múltiplas ONTs em lote
+        
+        Args:
+            ont_list: Lista de dicionários com informações das ONTs
+                     [{"port": 1, "ont": 1}, {"port": 1, "ont": 2}, ...]
+        
+        Returns:
+            Dict: Dicionário com resultados do reset de cada ONT
         """
+        results = {}
+        
         try:
             if not self.current_interface:
                 self.logger.error("Interface GPON não configurada")
-                return False
+                return results
 
-            self.logger.info(f"Iniciando reset da ONT {port_id}/{ont_id}")
+            self.logger.info(f"Iniciando reset em lote de {len(ont_list)} ONTs")
             
-            # Comando para resetar a ONT
-            reset_cmd = f'ont reset {port_id} {ont_id}'
-            self.logger.debug(f"Executando comando: {reset_cmd}")
-            
-            # Envia o comando inicial
-            self.channel.send(reset_cmd + '\n')
-            time.sleep(2)  # Aguarda a pergunta de confirmação
-            
-            # Captura a resposta inicial
-            output = ''
-            while self.channel.recv_ready():
-                output += self.channel.recv(4096).decode('utf-8', errors='ignore')
-            
-            # Envia confirmação 'y'
-            if "Are you sure" in output:
-                self.logger.debug("Enviando confirmação 'y'")
-                self.channel.send('y\n')
-                time.sleep(3)  # Aguarda a conclusão do reset
+            for ont_info in ont_list:
+                port_id = ont_info['port']
+                ont_id = ont_info['ont']
+                ont_key = f"{port_id}/{ont_id}"
                 
-                # Captura a resposta final
-                while self.channel.recv_ready():
-                    output += self.channel.recv(4096).decode('utf-8', errors='ignore')
+                try:
+                    # Comando para resetar a ONT
+                    reset_cmd = f'ont reset {port_id} {ont_id}'
+                    self.logger.debug(f"Executando comando: {reset_cmd}")
+                    
+                    # Envia o comando inicial
+                    self.channel.send(reset_cmd + '\n')
+                    time.sleep(2)  # Aguarda a pergunta de confirmação
+                    
+                    # Captura a resposta inicial
+                    output = ''
+                    while self.channel.recv_ready():
+                        output += self.channel.recv(4096).decode('utf-8', errors='ignore')
+                    
+                    # Envia confirmação 'y'
+                    if "Are you sure" in output:
+                        self.logger.debug(f"Enviando confirmação 'y' para ONT {ont_key}")
+                        self.channel.send('y\n')
+                        time.sleep(3)  # Aguarda a conclusão do reset
+                        
+                        # Captura a resposta final
+                        while self.channel.recv_ready():
+                            output += self.channel.recv(4096).decode('utf-8', errors='ignore')
+                    
+                    if self.verbose:
+                        self._log_command(f"{reset_cmd} (ONT {ont_key})", output, "Comando Reset em Lote")
+                    
+                    # Verifica se houve erro
+                    if 'Error' in output or 'error' in output or 'Command' in output:
+                        self.logger.error(f"Erro ao resetar ONT {ont_key}")
+                        self.logger.error(f"Resposta: {output}")
+                        results[ont_key] = False
+                    else:
+                        self.logger.info(f"ONT {ont_key} resetada com sucesso")
+                        results[ont_key] = True
+                    
+                    # Pequena pausa entre resets
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    self.logger.error(f"Erro ao resetar ONT {ont_key}: {str(e)}")
+                    results[ont_key] = False
+                    if self.verbose:
+                        self.logger.debug("Stack trace:", exc_info=True)
             
-            if self.verbose:
-                self._log_command(reset_cmd + ' (com confirmação)', output, "Comando Reset")
-            
-            # Verifica se houve erro
-            if 'Error' in output or 'error' in output or 'Command' in output:
-                self.logger.error(f"Erro ao resetar ONT {port_id}/{ont_id}")
-                self.logger.error(f"Resposta: {output}")
-                return False
-            
-            self.logger.info(f"ONT {port_id}/{ont_id} resetada com sucesso")
-            return True
+            return results
             
         except Exception as e:
-            self.logger.error(f"Erro ao resetar ONT: {str(e)}")
+            self.logger.error(f"Erro no processo de reset em lote: {str(e)}")
             if self.verbose:
                 self.logger.debug("Stack trace:", exc_info=True)
-            return False
+            return results
 
     def verify_ont_status(self, port_id: int, ont_id: int) -> Optional[str]:
         """
@@ -274,13 +300,19 @@ def main():
     parser.add_argument('--host', required=True, help='Endereço IP da OLT')
     parser.add_argument('--frame', required=True, type=int, help='ID do Frame (Chassi)')
     parser.add_argument('--slot', required=True, type=int, help='ID do Slot')
-    parser.add_argument('--port', required=True, type=int, help='ID da Porta')
-    parser.add_argument('--ont', required=True, type=int, help='ID da ONT')
+    parser.add_argument('--onts', required=True, help='Lista de ONTs em JSON. Ex: [{"port":1,"ont":1},{"port":2,"ont":3}]')
     parser.add_argument('--username', required=True, help='Usuário para login')
     parser.add_argument('--password', required=True, help='Senha para login')
     parser.add_argument('--verbose', '-v', action='store_true', help='Modo verbose com logs detalhados')
     
     args = parser.parse_args()
+    
+    # Parse da lista de ONTs
+    try:
+        ont_list = json.loads(args.onts)
+    except json.JSONDecodeError:
+        print("Erro: O formato da lista de ONTs é inválido. Use o formato JSON correto.")
+        return
     
     # Inicializa conexão com a OLT
     olt = HuaweiOLT(
@@ -299,16 +331,30 @@ def main():
         if not olt.configure_interface(args.frame, args.slot):
             return
         
-        # Reseta a ONT
-        if olt.reset_ont(args.port, args.ont):
-            # Aguarda um tempo para a ONT reiniciar
-            olt.logger.info("Aguardando 10 segundos para a ONT reiniciar...")
+        # Reseta as ONTs em lote
+        results = olt.reset_multiple_onts(ont_list)
+        
+        # Mostra resultados
+        print("\nResultados do reset em lote:")
+        print("-" * 40)
+        for ont_key, success in results.items():
+            status = "Sucesso" if success else "Falha"
+            print(f"ONT {ont_key}: {status}")
+        print("-" * 40)
+        
+        # Aguarda um tempo para as ONTs reiniciarem
+        if any(results.values()):
+            print("\nAguardando 10 segundos para as ONTs reiniciarem...")
             time.sleep(10)
             
-            # Verifica o status após reset
-            status = olt.verify_ont_status(args.port, args.ont)
-            if status:
-                print(f"Status atual da ONT: {status}")
+            # Verifica status das ONTs que foram resetadas com sucesso
+            print("\nStatus final das ONTs:")
+            print("-" * 40)
+            for ont_info in ont_list:
+                if results.get(f"{ont_info['port']}/{ont_info['ont']}", False):
+                    status = olt.verify_ont_status(ont_info['port'], ont_info['ont'])
+                    print(f"ONT {ont_info['port']}/{ont_info['ont']}: {status or 'Status desconhecido'}")
+            print("-" * 40)
             
     finally:
         olt.disconnect()
