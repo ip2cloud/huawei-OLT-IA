@@ -137,25 +137,11 @@ PLATFORM=${PLATFORM:-$DEFAULT_PLATFORM}
 # Início da execução
 print_message "$GREEN" "Iniciando instalação do ONT Manager..."
 
-# Cria estrutura de diretórios
-print_message "$YELLOW" "Criando estrutura de diretórios..."
-mkdir -p src scripts logs ssh_keys
-check_error "Falha ao criar diretórios"
-
-# Cria requirements.txt
-print_message "$YELLOW" "Criando arquivo requirements.txt..."
-cat > requirements.txt << 'EOF'
-paramiko==3.4.0
-cryptography==42.0.0
-bcrypt==4.1.2
-pynacl==1.5.0
-EOF
-check_error "Falha ao criar requirements.txt"
-
-# Cria __init__.py no diretório src
-print_message "$YELLOW" "Criando arquivo __init__.py..."
-touch src/__init__.py
-check_error "Falha ao criar __init__.py"
+# Para todos os containers e remove imagens antigas
+print_message "$YELLOW" "Parando containers existentes e removendo imagens antigas..."
+docker compose down
+docker rmi $(docker images $IMAGE_NAME -q) 2>/dev/null || true
+check_error "Falha ao limpar ambiente anterior"
 
 # Configura buildx para multi-arquitetura
 print_message "$YELLOW" "Configurando Docker Buildx..."
@@ -164,57 +150,26 @@ docker buildx create --name multiarch --use
 docker buildx inspect multiarch --bootstrap
 check_error "Falha ao configurar Docker Buildx"
 
-# Define permissões
-print_message "$YELLOW" "Configurando permissões..."
-chmod +x huawei-ont-tool
-chmod +x install.sh
-chmod +x scripts/huawei-ont-manager.sh
-chmod +x src/huawei_ont_manager.py
-check_error "Falha ao configurar permissões"
-
-# Configura SSH
-print_message "$YELLOW" "Configurando SSH..."
-if [ ! -f ssh_keys/automation_key ]; then
-    print_message "$YELLOW" "Gerando chaves SSH..."
-    ssh-keygen -t rsa -b 4096 -f ssh_keys/automation_key -N "" -C "automation@ont-manager"
-    cp ssh_keys/automation_key.pub ssh_keys/authorized_keys
-fi
-check_error "Falha na configuração SSH"
-
 # Executa o build
 build_image
-
-# Para os containers existentes e remove
-print_message "$YELLOW" "Parando containers existentes..."
-docker compose down
-check_error "Falha ao parar containers"
 
 # Inicia os novos containers
 print_message "$YELLOW" "Iniciando novos containers..."
 docker compose up -d
 check_error "Falha ao iniciar containers"
 
+# Mostra a chave pública
+if [ -f ssh_keys/automation_key.pub ]; then
+    print_message "$YELLOW" "Chave pública SSH gerada:"
+    echo "-----------------------------------"
+    cat ssh_keys/automation_key.pub
+    echo "-----------------------------------"
+fi
+
 print_message "$GREEN" "Instalação concluída com sucesso!"
 echo "-----------------------------------"
-
-# Mostra a chave pública
-print_message "$YELLOW" "Chave pública SSH gerada:"
-echo "-----------------------------------"
-cat ssh_keys/automation_key.pub
-echo "-----------------------------------"
-
-print_message "$YELLOW" "Instruções de uso:"
-print_message "$GREEN" "1. Para ONT única:"
-print_message "$GREEN" "docker exec ont-manager huawei-ont-tool reset -o 172.16.0.21 0 2 2 16 lidia lidia2024 -v"
-print_message "$GREEN" ""
-print_message "$GREEN" "2. Para lote de ONTs:"
-print_message "$GREEN" "docker exec ont-manager huawei-ont-tool reset -l 172.16.0.21 0 2 '[{\"port\":2,\"ont\":16},{\"port\":2,\"ont\":17}]' lidia lidia2024 -v"
-print_message "$GREEN" ""
-print_message "$YELLOW" "Para ver os logs do container:"
-print_message "$GREEN" "docker logs -f ont-manager"
-print_message "$GREEN" ""
-print_message "$YELLOW" "Para entrar no container:"
-print_message "$GREEN" "docker exec -it ont-manager bash"
-print_message "$GREEN" ""
-print_message "$YELLOW" "Status do container:"
-docker ps --filter "name=ont-manager" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+print_message "$YELLOW" "Para testar a instalação:"
+print_message "$GREEN" "Para ONT única:"
+print_message "$GREEN" "docker exec ont-manager huawei-ont-manager.sh reset -o 172.16.0.21 0 2 2 16 lidia lidia2024 -v"
+print_message "$GREEN" "Para lote de ONTs:"
+print_message "$GREEN" "docker exec ont-manager huawei-ont-manager.sh reset -l 172.16.0.21 0 2 '[{\"port\":2,\"ont\":16},{\"port\":2,\"ont\":17}]' lidia lidia2024 -v"

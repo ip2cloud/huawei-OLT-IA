@@ -1,0 +1,20 @@
+services:
+  ont-manager:
+    image: ${REGISTRY_URL:-docker.io/asabocinski}/${IMAGE_NAME:-ont-manager}:${VERSION:-latest}
+    platform: ${PLATFORM:-linux/arm64}
+    container_name: ont-manager
+    environment:
+      - TZ=${TZ:-America/Sao_Paulo}
+      - PYTHONPATH=/app/manager/src
+    restart: unless-stopped # Alterado para reiniciar sempre exceto se parado manualmente
+    ports:
+      - "${SSH_PORT:-2222}:22" # Porta SSH configurável
+    volumes:
+      - ./logs:/app/manager/logs # Mantém os logs no host
+    networks:
+      - ont-network
+
+networks:
+  ont-network:
+    name: ont-network
+    driver: bridge

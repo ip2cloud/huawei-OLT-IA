@@ -2,10 +2,12 @@ import paramiko
 import time
 import logging
 import argparse
-from typing import Optional
+import json
+from typing import Optional, List, Dict
 from datetime import datetime
 import os
 from pathlib import Path
+
 
 class HuaweiOLT:
     def __init__(self, host: str, username: str, password: str, port: int = 22, verbose: bool = False):
@@ -30,7 +32,7 @@ class HuaweiOLT:
         logger.setLevel(logging.DEBUG if self.verbose else logging.INFO)
         
         # Cria diretório de logs se não existir
-        log_dir = Path('/app/lideri/logs')
+        log_dir = Path('/app/manager/logs')
         log_dir.mkdir(parents=True, exist_ok=True)
         
         # Nome do arquivo de log com data
@@ -295,25 +297,22 @@ class HuaweiOLT:
             self.client.close()
             self.logger.info("Conexão encerrada")
 
+
 def main():
     parser = argparse.ArgumentParser(description='Gerenciador de ONTs Huawei')
     parser.add_argument('--host', required=True, help='Endereço IP da OLT')
     parser.add_argument('--frame', required=True, type=int, help='ID do Frame (Chassi)')
     parser.add_argument('--slot', required=True, type=int, help='ID do Slot')
-    parser.add_argument('--onts', required=True, help='Lista de ONTs em JSON. Ex: [{"port":1,"ont":1},{"port":2,"ont":3}]')
+    parser.add_argument('--port', type=int, help='ID da Porta (usado com --ont)')
+    parser.add_argument('--ont', type=int, help='ID da ONT (usado com --port)')
+    parser.add_argument('--onts', help='Lista de ONTs em JSON para modo lote')
     parser.add_argument('--username', required=True, help='Usuário para login')
     parser.add_argument('--password', required=True, help='Senha para login')
     parser.add_argument('--verbose', '-v', action='store_true', help='Modo verbose com logs detalhados')
+    parser.add_argument('--mode', choices=['single', 'batch'], required=True, help='Modo de operação: single ou batch')
     
     args = parser.parse_args()
-    
-    # Parse da lista de ONTs
-    try:
-        ont_list = json.loads(args.onts)
-    except json.JSONDecodeError:
-        print("Erro: O formato da lista de ONTs é inválido. Use o formato JSON correto.")
-        return
-    
+
     # Inicializa conexão com a OLT
     olt = HuaweiOLT(
         host=args.host,
@@ -331,23 +330,40 @@ def main():
         if not olt.configure_interface(args.frame, args.slot):
             return
         
-        # Reseta as ONTs em lote
+        if args.mode == 'single':
+            if not args.port or not args.ont:
+                print("Erro: --port e --ont são obrigatórios no modo single")
+                return
+            
+            # Cria lista com uma única ONT
+            ont_list = [{"port": args.port, "ont": args.ont}]
+        else:  # mode == 'batch'
+            if not args.onts:
+                print("Erro: --onts é obrigatório no modo batch")
+                return
+                
+            try:
+                ont_list = json.loads(args.onts)
+            except json.JSONDecodeError:
+                print("Erro: O formato da lista de ONTs é inválido. Use o formato JSON correto.")
+                return
+
+        # Reseta as ONTs
         results = olt.reset_multiple_onts(ont_list)
         
         # Mostra resultados
-        print("\nResultados do reset em lote:")
+        print("\nResultados do reset:")
         print("-" * 40)
         for ont_key, success in results.items():
             status = "Sucesso" if success else "Falha"
             print(f"ONT {ont_key}: {status}")
         print("-" * 40)
         
-        # Aguarda um tempo para as ONTs reiniciarem
+        # Aguarda e verifica status
         if any(results.values()):
             print("\nAguardando 10 segundos para as ONTs reiniciarem...")
             time.sleep(10)
             
-            # Verifica status das ONTs que foram resetadas com sucesso
             print("\nStatus final das ONTs:")
             print("-" * 40)
             for ont_info in ont_list:

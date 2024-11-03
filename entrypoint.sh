@@ -183,6 +183,18 @@ check_command huawei-ont-manager.sh
 log $BLUE "=== Status Final do Container ==="
 show_status
 
+log $BLUE "=== Chave SSH para Conexão Remota ==="
+if [ -f /home/automation/.ssh/authorized_keys ]; then
+    log $YELLOW "Chave pública autorizada para conexão:"
+    log $GREEN "$(cat /home/automation/.ssh/authorized_keys)"
+    log $YELLOW "Use esta chave para se conectar remotamente via:"
+    log $GREEN "ssh -i <sua_chave_privada> -p 2222 automation@<ip_do_host>"
+else
+    log $RED "Arquivo de chave pública não encontrado!"
+fi
+
+log $BLUE "======================================================"
+
 log $GREEN "=== Configuração concluída. Iniciando SSHD... ==="
 
 # Inicia o SSH em modo debug

@@ -1,1 +1,5 @@
-/ssh_keys/
+logs/
+ssh_keys/
+__pycache__/
+*.pyc
+*.log
