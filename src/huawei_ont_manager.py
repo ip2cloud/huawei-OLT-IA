@@ -262,8 +262,11 @@ class HuaweiOLT:
             self.logger.info(f"Verificando status da ONT {port_id}/{ont_id}")
             
             # Comando para verificar status da ONT
-            status_cmd = f'display ont info {port_id} {ont_id}'
+            status_cmd = f'display ont info {port_id} {ont_id}'.strip()
             self.logger.debug(f"Executando comando: {status_cmd}")
+            
+            # Atraso para garantir que o comando seja interpretado corretamente
+            time.sleep(1)
             
             output = self.send_command(status_cmd)
             
@@ -278,12 +281,12 @@ class HuaweiOLT:
                     self.logger.info(f"Status atual da ONT {port_id}/{ont_id}: {status}")
                     break
             
-            if not status and self.verbose:
+            if not status:
                 self.logger.debug("Status não encontrado na saída")
                 self.logger.debug("Saída completa:")
                 self.logger.debug(output)
             
-            return status
+            return status or "Status desconhecido"
             
         except Exception as e:
             self.logger.error(f"Erro ao verificar status da ONT: {str(e)}")
@@ -313,6 +316,11 @@ def main():
     
     args = parser.parse_args()
 
+    # Adicione esta linha para verificar os argumentos passados
+    print(f"Modo: {args.mode}, Host: {args.host}, Frame: {args.frame}, Slot: {args.slot}, "
+          f"Port: {args.port}, ONT: {args.ont}, ONTs: {args.onts}, "
+          f"Username: {args.username}, Password: {args.password}, Verbose: {args.verbose}")
+
     # Inicializa conexão com a OLT
     olt = HuaweiOLT(
         host=args.host,
@@ -331,9 +339,9 @@ def main():
             return
         
         if args.mode == 'single':
-            if not args.port or not args.ont:
-                print("Erro: --port e --ont são obrigatórios no modo single")
-                return
+            #if not args.port or not args.ont:
+            #    print("Erro: --port e --ont são obrigatórios no modo single")
+            #    return
             
             # Cria lista com uma única ONT
             ont_list = [{"port": args.port, "ont": args.ont}]
@@ -361,8 +369,8 @@ def main():
         
         # Aguarda e verifica status
         if any(results.values()):
-            print("\nAguardando 10 segundos para as ONTs reiniciarem...")
-            time.sleep(10)
+            print("\nAguardando 20 segundos para as ONTs reiniciarem...")
+            time.sleep(20)
             
             print("\nStatus final das ONTs:")
             print("-" * 40)

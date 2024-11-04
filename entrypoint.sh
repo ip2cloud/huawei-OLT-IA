@@ -1,5 +1,26 @@
 #!/bin/bash
 
+# Configuração de logs
+STDOUT_LOG="/app/manager/logs/entrypoint.log"
+STDERR_LOG="/app/manager/logs/entrypoint.error.log"
+
+# Criar diretório de logs se não existir
+mkdir -p /app/manager/logs
+
+# Redirecionar STDOUT e STDERR para arquivos e console
+exec 1> >(tee -a "${STDOUT_LOG}")
+exec 2> >(tee -a "${STDERR_LOG}")
+
+# Define timestamp para os logs
+log_timestamp() {
+    while read -r line; do
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $line"
+    done
+}
+
+# Aplicar timestamp nos logs
+exec 1> >(log_timestamp)
+exec 2> >(log_timestamp)
 set -e  # Sai em caso de erro
 exec 2>&1  # Redireciona stderr para stdout para capturar todos os logs
 
@@ -112,17 +133,55 @@ log $GREEN "Conteúdo de /app/manager:"
 ls -la /app/manager/
 
 # Verifica huawei-ont-tool
-log $YELLOW "Verificando huawei-ont-tool..."
-check_command huawei-ont-tool
-if [ -f "/app/manager/huawei-ont-tool" ]; then
-    log $GREEN "Permissões do huawei-ont-tool: $(ls -l /app/manager/huawei-ont-tool)"
-fi
-if [ -L "/usr/local/bin/huawei-ont-tool" ]; then
-    log $GREEN "Link simbólico existe: $(ls -l /usr/local/bin/huawei-ont-tool)"
+log $YELLOW "Verificando huawei-ont-manager.sh..."
+check_command huawei-ont-manager.sh
+
+# Configuração SSH
+log $BLUE "=== Configurando SSH ==="
+
+# Configura diretório SSH do usuário automation
+log $YELLOW "Configurando diretório SSH do usuário..."
+mkdir -p /home/automation/.ssh
+chmod 700 /home/automation/.ssh
+chown automation:automation /home/automation/.ssh
+check_result "Diretório SSH configurado"
+
+# Gera novo par de chaves se não existir
+log $YELLOW "Verificando/Gerando chaves SSH..."
+if [ ! -f /home/automation/.ssh/automation_key ]; then
+    log $YELLOW "Gerando novo par de chaves SSH..."
+    ssh-keygen -t rsa -b 4096 -f /home/automation/.ssh/automation_key -N "" -C "automation@ont-manager"
+    check_result "Par de chaves SSH gerado"
+
+    log $BLUE "=== Informações de Acesso SSH ==="
+    log $YELLOW "IMPORTANTE: Salve a chave privada abaixo. Ela será exibida apenas uma vez!"
+    log $YELLOW "========== INÍCIO DA CHAVE PRIVADA =========="
+    cat /home/automation/.ssh/automation_key
+    log $YELLOW "========== FIM DA CHAVE PRIVADA ============="
+    echo ""
+    
+    log $YELLOW "Chave pública correspondente:"
+    log $GREEN "$(cat /home/automation/.ssh/automation_key.pub)"
+    echo ""
+    
+    # Copia a chave pública para authorized_keys
+    cp /home/automation/.ssh/automation_key.pub /home/automation/.ssh/authorized_keys
+    chmod 600 /home/automation/.ssh/authorized_keys
+    chown automation:automation /home/automation/.ssh/authorized_keys
+    
+    log $YELLOW "Instruções de uso:"
+    log $GREEN "1. Copie a chave privada acima para um arquivo local (ex: automation_key)"
+    log $GREEN "2. Execute: chmod 600 automation_key"
+    log $GREEN "3. Conecte usando: ssh -i automation_key -p 2222 automation@<ip_do_host>"
+    echo ""
+    
+    # Remove a chave privada por segurança
+    #log $YELLOW "Removendo chave privada do container por segurança..."
+    #shred -u /home/automation/.ssh/automation_key
+    #check_result "Chave privada removida com segurança"
 fi
 
-log $YELLOW "Verificando e configurando chaves SSH..."
-# Verifica e configura as host keys SSH
+# Verifica e gera as host keys SSH
 for key_type in rsa ecdsa ed25519; do
     key_file="/etc/ssh/ssh_host_${key_type}_key"
     if [ ! -f "$key_file" ]; then
@@ -134,34 +193,18 @@ for key_type in rsa ecdsa ed25519; do
     fi
 done
 
-log $YELLOW "Configurando permissões..."
-# Configura permissões dos diretórios
-chown -R automation:automation /app/manager/logs
-chmod 755 /app/manager/logs
-check_result "Permissões de logs configuradas"
-
-# Configura permissões SSH
-mkdir -p /home/automation/.ssh
-chmod 700 /home/automation/.ssh
-chown automation:automation /home/automation/.ssh
-check_result "Diretório SSH configurado"
-
-if [ -f /home/automation/.ssh/authorized_keys ]; then
-    chmod 600 /home/automation/.ssh/authorized_keys
-    chown automation:automation /home/automation/.ssh/authorized_keys
-    check_result "Arquivo authorized_keys configurado"
-fi
-
-log $YELLOW "Configurando SSHD..."
-# Verifica configurações do SSH
-if ! grep -q "PermitRootLogin" /etc/ssh/sshd_config; then
-    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
-    check_result "PermitRootLogin configurado"
-fi
-if ! grep -q "AuthorizedKeysFile" /etc/ssh/sshd_config; then
-    echo "AuthorizedKeysFile .ssh/authorized_keys" >> /etc/ssh/sshd_config
-    check_result "AuthorizedKeysFile configurado"
-fi
+# Configura sshd_config
+log $YELLOW "Configurando sshd_config..."
+{
+    echo "PermitRootLogin no"
+    echo "PubkeyAuthentication yes"
+    echo "PasswordAuthentication no"
+    echo "ChallengeResponseAuthentication no"
+    echo "UsePAM yes"
+    echo "Subsystem sftp /usr/lib/openssh/sftp-server"
+    echo "AuthorizedKeysFile .ssh/authorized_keys"
+} > /etc/ssh/sshd_config
+check_result "sshd_config configurado"
 
 # Verifica configuração do SSHD
 log $YELLOW "Verificando configuração do SSHD..."
@@ -182,18 +225,6 @@ check_command huawei-ont-manager.sh
 
 log $BLUE "=== Status Final do Container ==="
 show_status
-
-log $BLUE "=== Chave SSH para Conexão Remota ==="
-if [ -f /home/automation/.ssh/authorized_keys ]; then
-    log $YELLOW "Chave pública autorizada para conexão:"
-    log $GREEN "$(cat /home/automation/.ssh/authorized_keys)"
-    log $YELLOW "Use esta chave para se conectar remotamente via:"
-    log $GREEN "ssh -i <sua_chave_privada> -p 2222 automation@<ip_do_host>"
-else
-    log $RED "Arquivo de chave pública não encontrado!"
-fi
-
-log $BLUE "======================================================"
 
 log $GREEN "=== Configuração concluída. Iniciando SSHD... ==="
 
