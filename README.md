@@ -1,191 +1,165 @@
-# Guia de Execução - ONT Manager
+# Huawei ONT Management Tool
 
-## 1. Estrutura do Projeto
+This project provides a tool for managing ONTs (Optical Network Terminals) on Huawei OLTs (Optical Line Terminals), allowing operations such as status checking, resetting, and listing ONTs.
 
-Primeiro, crie a estrutura de diretórios:
+## Installation and Configuration
 
-```bash
-mkdir manager
-cd manager
-mkdir -p src scripts logs ssh_keys
-```
+### 1. Configure Environment Variables
 
-## 2. Arquivos Principais
-
-Copie os seguintes arquivos para seus respectivos diretórios:
-
-```plaintext
-manager/
-│
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-├── install.sh                 # instalador
-├── huawei-ont-tool          # script wrapper
-│
-├── src/
-│   ├── __init__.py
-│   └── huawei_ont_manager.py
-│
-├── scripts/
-│   └── huawei-ont-manager.sh
-│
-├── logs/
-│
-└── ssh_keys/
-```
-
-## 3. Permissões
-
-Configure as permissões dos scripts:
+Copy the `.env.example` file to `.env` and adjust the variables as needed:
 
 ```bash
-chmod +x huawei-ont-tool
-chmod +x install.sh
-chmod +x scripts/huawei-ont-manager.sh
-chmod +x src/huawei_ont_manager.py
+cp .env.example .env
 ```
 
-## 4. Build da Imagem
+Edit the `.env` file with the desired configurations:
 
-Você tem várias opções para build:
+```env
+# Image Configurations
+REGISTRY_URL=docker.io/asabocinski
+IMAGE_NAME=ont-manager
+VERSION=1.0.0
+
+# Container Configurations
+PLATFORM=linux/arm64
+TZ=America/Sao_Paulo
+SSH_PORT=2222
+```
+
+### 2. Start the Container
+
+Run the following command to start the container:
 
 ```bash
-# Build padrão (arm64 e amd64)
-./install.sh
-
-# Apenas para ARM64
-./install.sh --arm64
-
-# Apenas para AMD64
-./install.sh --amd64
-
-# Com tag específica
-./install.sh --tag 1.0.0
-
-# Para registry
-./install.sh --push --registry seu.registry.com
+docker-compose -f docker-compose-selfhost.yaml up -d
 ```
 
-## 5. Testar o Acesso
+### 3. Verify if it's Running
 
-Após o build, teste o acesso SSH:
+Check if the container is running with the command:
 
 ```bash
-ssh -i ssh_keys/automation_key -p 2222 automation@localhost
+docker-compose -f docker-compose-selfhost.yaml ps
 ```
 
-## 6. Uso do Sistema
+## Usage
 
-### Para resetar uma única ONT:
+The `huawei-ont-manager.sh` script offers several operations to manage ONTs:
+
+### 1. Check Status of a Single ONT
 
 ```bash
-./huawei-ont-tool reset -o 172.16.0.21 0 2 2 16 user password -v
+./huawei-ont-manager.sh status -o HOST FRAME SLOT PORT ONT USERNAME PASSWORD [-v|--verbose]
+
+# Example:
+./huawei-ont-manager.sh status -o 172.16.0.13 0 5 2 0 admin senha123 --verbose
 ```
 
-Onde:
-
-- 172.16.0.21 = IP da OLT
-- 0 = Frame
-- 2 = Slot
-- 2 = Porta
-- 16 = ONT ID
-- user = usuário
-- password = senha
-- -v = verbose (opcional)
-
-### Para resetar múltiplas ONTs:
+### 2. Reset a Single ONT
 
 ```bash
-./huawei-ont-tool reset -l 172.16.0.21 0 2 '[{"port":2,"ont":16},{"port":2,"ont":17}]' user password -v
+./huawei-ont-manager.sh reset -o HOST FRAME SLOT PORT ONT USERNAME PASSWORD [-v|--verbose]
+
+# Example:
+./huawei-ont-manager.sh reset -o 172.16.0.13 0 5 2 0 admin senha123 --verbose
 ```
 
-## 7. Comandos Úteis
-
-### Verificar status do container:
+### 3. Batch Operations
 
 ```bash
-docker compose ps
+./huawei-ont-manager.sh reset -l HOST FRAME SLOT ONTS USERNAME PASSWORD [-v|--verbose]
+
+# Example:
+./huawei-ont-manager.sh reset -l 172.16.0.13 0 5 '[{"port":2,"ont":0},{"port":2,"ont":1}]' admin senha123 --verbose
 ```
 
-### Ver logs do container:
+### 4. List ONTs of a Port
 
 ```bash
-docker compose logs
+./huawei-ont-manager.sh ont-summary HOST FRAME SLOT PORT USERNAME PASSWORD [-v|--verbose]
+
+# Example:
+./huawei-ont-manager.sh ont-summary 172.16.0.13 0 5 2 admin senha123 --verbose
 ```
 
-### Reiniciar o serviço:
+## Creating a New Version
+
+To create a new version of the project, follow these steps:
+
+1. Make the necessary changes to the source code.
+
+2. Update the version number in the `.env` file:
+
+```env
+VERSION=new_version
+```
+
+3. Build the new image using the `install.sh` script:
 
 ```bash
-docker compose down
-docker compose up -d
+./install.sh -t new_version
 ```
 
-### Reconstruir após mudanças:
+This command will build the new image with the specified tag.
+
+Now, when running:
 
 ```bash
-docker compose down
-./install.sh
-docker compose up -d
+./install.sh -v -t 0.1.3
 ```
 
-## 8. Resolução de Problemas
+The script will detect that it's a multi-platform build without --push and display a clear error message with the available options:
 
-### Se o SSH não conectar:
+1. Use --push to push to a registry
+2. Specify a single platform (-p arm64 or -p amd64)
+
+For local builds, you must specify the platform:
 
 ```bash
-# Verifique os logs
-docker compose logs
-
-# Verifique se a porta está aberta
-netstat -tuln | grep 2222
-
-# Verifique as permissões das chaves
-ls -la ssh_keys/
+./install.sh -v -t 0.1.3 -p arm64
 ```
 
-### Se o reset falhar:
+For multi-platform builds, you must use --push with registry or repository:
 
 ```bash
-# Use o modo verbose
-./huawei-ont-tool reset -o IP FRAME SLOT PORT ONT USER PASS -v
-
-# Verifique os logs em tempo real
-tail -f logs/ont_operations_*.log
+./install.sh -v -t 0.1.3 --push -r youruser
 ```
 
-## 9. Backups
-
-Faça backup regular dos arquivos importantes:
+4. Start the container with the new version:
 
 ```bash
-tar -czf ont-manager-backup.tar.gz \
-    src/ \
-    scripts/ \
-    ssh_keys/ \
-    Dockerfile \
-    docker-compose.yml \
-    requirements.txt \
-    install.sh \
-    install.sh \
-    huawei-ont-tool
+docker-compose -f docker-compose-selfhost.yaml up -d
 ```
 
-## 10. Atualizações
+This will replace the running container with the new version.
 
-Para atualizar o sistema:
-
-1. Faça backup dos dados
-2. Atualize os arquivos necessários
-3. Reconstrua a imagem:
+5. Verify that the new version is running correctly:
 
 ```bash
-./install.sh --tag NOVA_VERSAO
+docker-compose -f docker-compose-selfhost.yaml ps
 ```
 
-## 11. Observações Importantes
+6. Optionally, push the new image to a Docker registry:
 
-- Mantenha as chaves SSH seguras
-- Faça backup regular dos logs importantes
-- Use sempre o modo verbose (-v) ao diagnosticar problemas
-- Verifique os logs após cada operação importante
+```bash
+./install.sh -t new_version --push -r your_user
+```
+
+This will push the image to the specified registry.
+
+## Parameters
+
+- `HOST`: IP or hostname of the OLT
+- `FRAME`: Frame number (usually 0)
+- `SLOT`: Slot number
+- `PORT`: Port number
+- `ONT`: ONT ID
+- `USERNAME`: OLT access username
+- `PASSWORD`: OLT access password
+- `-v|--verbose`: Enables verbose mode with more information
+
+Refer to the documentation of the `huawei-ont-manager.sh` script for more details on parameters and usage examples.
+
+## Troubleshooting
+
+Refer to the "Troubleshooting" section of the original README for tips on solving common issues.
