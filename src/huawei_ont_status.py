@@ -59,6 +59,9 @@ class ONTStatusChecker:
         
         self.channel.send('config\n')
         time.sleep(1)
+
+        self.channel.send('mmi-mode original-output\n')
+        time.sleep(1)
         
         self.log("Entered configuration mode")
 
@@ -66,27 +69,33 @@ class ONTStatusChecker:
         """Execute command on the OLT and return output."""
         self.log(f"Executing command: {command}")
         
+        # Garante que números em comandos específicos tenham espaços
+        if 'optical-info' in command:
+            parts = command.split()
+            if len(parts) >= 2:
+                # Reconstrói o comando garantindo espaços
+                command = ' '.join(parts[:-2] + [parts[-2], parts[-1]])
+        
         self.channel.send(f"{command}\n")
         time.sleep(2)
         
         output = ""
-        buffer = ""
-        more_count = 0
-        max_more = 10  # Limite máximo de "More" para evitar loop infinito
-        
         while True:
             if self.channel.recv_ready():
-                buffer = self.channel.recv(4096).decode('utf-8')
-                output += buffer
-            
-            if "---- More" in buffer:
-                more_count += 1
-                if more_count > max_more:
+                chunk = self.channel.recv(4096).decode('utf-8')
+                output += chunk
+                
+                # Se encontrar prompt de More, envia espaço
+                if "---- More" in chunk:
+                    self.channel.send(' ')
+                    time.sleep(1)
+                # Aguarda até ver o prompt de comando
+                elif any(prompt in chunk for prompt in ['(config)#', '(config-if-gpon-', '>', '#']):
                     break
-                self.channel.send(' ')
-                time.sleep(1)
-            elif not self.channel.recv_ready():
-                break
+            else:
+                time.sleep(0.1)
+                if not self.channel.recv_ready():
+                    break
         
         return output
 
@@ -118,24 +127,57 @@ class ONTStatusChecker:
 
     def check_single_ont_status(self, frame: str, slot: str, port: str, ont: str) -> Dict:
         """Check status of a single ONT."""
-        # Primeiro coleta informações básicas da ONT
+        # Informações básicas da ONT
         info_command = f"display ont info {frame} {slot} {port} {ont}"
         info_output = self.execute_command(info_command)
+        self.log(f"INFO OUTPUT:\n{info_output}")
         
-        # Depois coleta o histórico
-        history_command = f"display ont history {frame} {slot} {port} {ont}"
-        history_output = self.execute_command(history_command)
+        # Entra na interface GPON
+        gpon_interface = f"interface gpon {frame}/{slot}"
+        self.execute_command(gpon_interface)
+        self.log(f"Entered GPON interface: {gpon_interface}")
         
-        # Coleta informações ópticas
-        optical_command = f"display ont optical-info {frame} {slot} {port} {ont}"
+        # Garante espaço entre parâmetros do comando optical-info
+        optical_command = f"display ont optical-info {port} {ont}"
+        self.channel.send(f"{optical_command}\n")
+        time.sleep(2)
         optical_output = ""
         
-        # Tenta várias vezes coletar info óptica (às vezes precisa de mais de uma tentativa)
-        for _ in range(3):
-            optical_output = self.execute_command(optical_command)
-            if "Optical" in optical_output:
+        while self.channel.recv_ready():
+            chunk = self.channel.recv(4096).decode('utf-8')
+            optical_output += chunk
+            if ")#" in chunk:  # Aguarda o prompt completo
                 break
-            time.sleep(1)
+            time.sleep(0.1)
+        
+        self.log(f"OPTICAL OUTPUT:\n{optical_output}")
+
+        # Sai da interface GPON após optical-info
+        self.execute_command("quit")
+
+        # Entra novamente na interface GPON para version summary
+        self.execute_command(gpon_interface)
+        self.log(f"Entered GPON interface for version: {gpon_interface}")
+        
+        # Garante espaço entre parâmetros do comando version (mesma abordagem do optical-info)
+        version_command = f"display ont version {port} {ont}"
+        self.channel.send(f"{version_command}\n")
+        
+        time.sleep(2)
+        
+        version_output = ""
+        
+        while self.channel.recv_ready():
+            chunk = self.channel.recv(4096).decode('utf-8')
+            version_output += chunk
+            if ")#" in chunk:  # Aguarda o prompt completo
+                break
+            time.sleep(0.1)
+        
+        self.log(f"VERSION OUTPUT:\n{version_output}")
+        
+        # Retorna para o modo config
+        self.execute_command("quit")
         
         status_info = {
             'ont_info': {
@@ -153,10 +195,13 @@ class ONTStatusChecker:
                 },
                 'metrics': {
                     'distance': '',
+                    'memory': '',
+                    'cpu': '',
                     'temperature': '',
+                    'online_duration': '',
                     'optical': {
-                        'rx_power': '',
-                        'tx_power': '',
+                        'rx': '',
+                        'tx': '',
                         'voltage': '',
                         'current': '',
                         'temperature': ''
@@ -170,6 +215,9 @@ class ONTStatusChecker:
                     'last_up': {
                         'time': ''
                     },
+                    'last_dying_gasp': {
+                        'time': ''
+                    },
                     'last_event': {
                         'type': '',
                         'cause': ''
@@ -177,7 +225,13 @@ class ONTStatusChecker:
                 },
                 'authentication': {
                     'type': '',
-                    'mode': ''
+                    'mode': '',
+                    'work_mode': ''
+                },
+                'version': {
+                    'ont_version': '',
+                    'equipment_id': '',
+                    'software_version': ''
                 }
             }
         }
@@ -196,26 +250,32 @@ class ONTStatusChecker:
                 }
             }
         
-        # Status patterns
+        # Status patterns baseados na documentação
         patterns = {
             'run_state': r'Run state\s*:\s*(\w+)',
             'control_flag': r'Control flag\s*:\s*(\w+)',
             'config_state': r'Config state\s*:\s*(\w+)',
             'match_state': r'Match state\s*:\s*(\w+)',
-            'serial': r'SN\s*:\s*(\w+)',
-            'description': r'Description\s*:\s*(.+?)[\r\n]',
+            'serial': r'SN\s*:\s*([A-Za-z0-9]+)',
+            'description': r'Description\s*:\s*([^\r\n]+)',
             'distance': r'ONT distance\(m\)\s*:\s*(\d+)',
             'auth_type': r'Authentic type\s*:\s*([^\r\n]+)',
             'mgmt_mode': r'Management mode\s*:\s*([^\r\n]+)',
-            'last_down_time': r'Last down time\s*:\s*([^\r\n]+)',
+            'work_mode': r'Software work mode\s*:\s*([^\r\n]+)',
+            'memory': r'Memory occupation\s*:\s*(\d+%)',
+            'cpu': r'CPU occupation\s*:\s*(\d+%)',
+            'temperature': r'Temperature\s*:\s*(\d+)\(C\)',
             'last_down_cause': r'Last down cause\s*:\s*([^\r\n]+)',
-            'last_up_time': r'Last up time\s*:\s*([^\r\n]+)'
+            'last_up_time': r'Last up time\s*:\s*([^\r\n]+)',
+            'last_down_time': r'Last down time\s*:\s*([^\r\n]+)',
+            'last_dying_gasp': r'Last dying gasp time\s*:\s*([^\r\n]+)',
+            'online_duration': r'ONT online duration\s*:\s*([^\r\n]+)'
         }
         
         # Extract all basic information
         for key, pattern in patterns.items():
-            match = re.search(pattern, info_output + history_output, re.IGNORECASE)
-            if match:
+            match = re.search(pattern, info_output, re.IGNORECASE)
+            if match and match.group(1).strip() not in ['-', '']:
                 value = match.group(1).strip()
                 if key == 'run_state':
                     status_info['ont_info']['status']['run_state'] = value.upper()
@@ -231,79 +291,104 @@ class ONTStatusChecker:
                     status_info['ont_info']['description'] = value
                 elif key == 'distance':
                     status_info['ont_info']['metrics']['distance'] = f"{value}m"
+                elif key == 'memory':
+                    status_info['ont_info']['metrics']['memory'] = value
+                elif key == 'cpu':
+                    status_info['ont_info']['metrics']['cpu'] = value
+                elif key == 'temperature':
+                    status_info['ont_info']['metrics']['temperature'] = f"{value}°C"
+                elif key == 'online_duration':
+                    status_info['ont_info']['metrics']['online_duration'] = value
                 elif key == 'auth_type':
                     status_info['ont_info']['authentication']['type'] = value
                 elif key == 'mgmt_mode':
                     status_info['ont_info']['authentication']['mode'] = value
-                elif key == 'last_down_time':
-                    status_info['ont_info']['events']['last_down']['time'] = self.parse_date(value)
+                elif key == 'work_mode':
+                    status_info['ont_info']['authentication']['work_mode'] = value
                 elif key == 'last_down_cause':
                     status_info['ont_info']['events']['last_down']['cause'] = value
-                elif key == 'last_up_time':
-                    status_info['ont_info']['events']['last_up']['time'] = self.parse_date(value)
+                elif key in ['last_up_time', 'last_down_time', 'last_dying_gasp']:
+                    event_type = key.replace('_time', '')
+                    time_value = self.parse_date(value)
+                    status_info['ont_info']['events'][event_type]['time'] = time_value
         
-        # Eventos
-        last_up_time = status_info['ont_info']['events']['last_up'].get('time', '')
-        last_down_time = status_info['ont_info']['events']['last_down'].get('time', '')
-        
-        if last_up_time and last_down_time:
-            try:
-                up_dt = datetime.fromisoformat(last_up_time)
-                down_dt = datetime.fromisoformat(last_down_time)
-                if up_dt > down_dt:
-                    status_info['ont_info']['events']['last_event'] = {
-                        'type': 'up'
-                    }
-                else:
-                    status_info['ont_info']['events']['last_event'] = {
-                        'type': 'down',
-                        'cause': status_info['ont_info']['events']['last_down']['cause']
-                    }
-            except ValueError:
-                pass
-        elif last_up_time:
-            status_info['ont_info']['events']['last_event'] = {
-                'type': 'up'
-            }
-        elif last_down_time:
-            status_info['ont_info']['events']['last_event'] = {
-                'type': 'down',
-                'cause': status_info['ont_info']['events']['last_down']['cause']
-            }
-        
-        # Optical patterns mais específicos
+        # Parse optical info
         optical_patterns = {
             'rx_power': r'Rx optical power\(dBm\)\s*:\s*([-\d.]+)',
             'tx_power': r'Tx optical power\(dBm\)\s*:\s*([-\d.]+)',
+            'olt_rx_power': r'OLT Rx ONT optical power\(dBm\)\s*:\s*([-\d.]+)',
             'voltage': r'Voltage\(V\)\s*:\s*([-\d.]+)',
-            'bias_current': r'Laser bias current\(mA\)\s*:\s*(\d+)',
-            'temperature': r'Temperature\(C\)\s*:\s*(\d+)',
-            'olt_rx_power': r'OLT Rx ONT optical power\(dBm\)\s*:\s*([-\d.]+)'
+            'bias_current': r'Bias current\s*:\s*([-\d.]+)',
+            'temperature': r' Temperature\(C\)\s*:\s*([-\d.]+)'
         }
         
-        if optical_output:
+        if optical_output and 'Unknown command' not in optical_output:
             optical_data = {}
             for key, pattern in optical_patterns.items():
                 match = re.search(pattern, optical_output, re.IGNORECASE | re.MULTILINE)
                 if match:
                     value = match.group(1).strip()
-                    if 'power' in key:
-                        optical_data[key.replace('_power', '')] = f"{value} dBm"
+                    if key == 'rx_power':
+                        optical_data['rx'] = f"{value} dBm"
+                    elif key == 'tx_power':
+                        optical_data['tx'] = f"{value} dBm"
+                    elif key == 'olt_rx_power':
+                        optical_data['olt_rx'] = f"{value} dBm"
                     elif key == 'voltage':
                         optical_data['voltage'] = f"{value} V"
                     elif key == 'bias_current':
                         optical_data['current'] = f"{value} mA"
                     elif key == 'temperature':
                         optical_data['temperature'] = f"{value} °C"
-                    elif key == 'olt_rx_power':
-                        optical_data['olt_rx'] = f"{value} dBm"
+                        
+            if optical_data:
+                status_info['ont_info']['metrics']['optical'] = optical_data
         
-        if optical_data:
-            status_info['ont_info']['metrics']['optical'] = optical_data
-
+        # Parse version info
+        version_patterns = {
+            'ont_version': r'ONT\s+[Vv]ersion\s*:\s*([^\r\n]+)',
+            'equipment_id': r'Equipment-ID\s*:\s*([^\r\n]+)',
+            'software_version': r'[Mm]ain\s+[Ss]oftware\s+[Vv]ersion\s*:\s*([^\r\n]+)'
+        }
+        
+        if version_output and 'Unknown command' not in version_output:
+            version_data = {}
+            for key, pattern in version_patterns.items():
+                match = re.search(pattern, version_output, re.IGNORECASE)
+                if match and match.group(1).strip() not in ['-', '']:
+                    version_data[key] = match.group(1).strip()
+                    
+            if version_data:
+                status_info['ont_info']['version'] = version_data
+        
+        # Determine last event
+        events_times = {
+            'up': status_info['ont_info']['events']['last_up'].get('time', ''),
+            'down': status_info['ont_info']['events']['last_down'].get('time', ''),
+            'dying_gasp': status_info['ont_info']['events'].get('last_dying_gasp', {}).get('time', '')
+        }
+        
+        latest_event = max(
+            [(time_str, event_type) for event_type, time_str in events_times.items() if time_str],
+            default=(None, None),
+            key=lambda x: x[0] if x[0] else ''
+        )
+        
+        if latest_event[0]:
+            if latest_event[1] == 'up':
+                status_info['ont_info']['events']['last_event'] = {'type': 'up'}
+            else:
+                status_info['ont_info']['events']['last_event'] = {
+                    'type': 'down',
+                    'cause': status_info['ont_info']['events']['last_down']['cause']
+                }
+        
         # Clean up empty fields
         if not status_info['ont_info']['metrics'].get('optical'):
             status_info['ont_info']['metrics'].pop('optical', None)
+        
+        if not status_info['ont_info'].get('version'):
+            status_info['ont_info'].pop('version', None)
         
         return status_info
 
