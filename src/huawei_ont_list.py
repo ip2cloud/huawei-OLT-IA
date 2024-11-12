@@ -34,8 +34,8 @@ class ONTListChecker:
             )
             
             self.channel = self.client.invoke_shell()
-            time.sleep(2)
-            self.channel.recv(4096)
+            time.sleep(3)
+            self.clear_buffer()
             
             self.log(f"Successfully connected to {self.host}")
             self._setup_session()
@@ -46,17 +46,27 @@ class ONTListChecker:
                     "message": f"Failed to connect to {self.host}: {str(e)}",
                     "type": "ConnectionError"
                 }
-            }), file=sys.stderr)
+            }))
             sys.exit(1)
+
+    def clear_buffer(self) -> None:
+        """Clear any pending data in the channel buffer."""
+        while self.channel.recv_ready():
+            self.channel.recv(4096)
             
     def _setup_session(self) -> None:
         """Setup the session with correct configuration mode."""
-        self.channel.send('enable\n')
-        time.sleep(1)
-        self.channel.recv(4096)
+        commands = [
+            'enable',
+            'config',
+            'undo smart',
+            'mmi-mode original-output'
+        ]
         
-        self.channel.send('config\n')
-        time.sleep(1)
+        for cmd in commands:
+            self.channel.send(f'{cmd}\n')
+            time.sleep(2)
+            self.clear_buffer()
         
         self.log("Entered configuration mode")
 
@@ -64,140 +74,138 @@ class ONTListChecker:
         """Execute command on the OLT and return output."""
         self.log(f"Executing command: {command}")
         
+        self.clear_buffer()
         self.channel.send(f"{command}\n")
-        time.sleep(2)
+        time.sleep(5)
         
         output = ""
+        timeout = 30
+        start_time = time.time()
+        
         while True:
+            if time.time() - start_time > timeout:
+                break
+                
             if self.channel.recv_ready():
-                chunk = self.channel.recv(4096).decode('utf-8')
+                chunk = self.channel.recv(4096).decode('utf-8', errors='ignore')
                 output += chunk
                 
                 if "---- More" in chunk:
                     self.channel.send(' ')
-                    time.sleep(1)
-                elif any(prompt in chunk for prompt in ['(config)#', '(config-if-gpon-', '>', '#']):
+                    time.sleep(2)
+                    continue
+                
+                if ")#" in chunk or ")" in chunk:
+                    time.sleep(2)
+                    while self.channel.recv_ready():
+                        output += self.channel.recv(4096).decode('utf-8', errors='ignore')
                     break
             else:
-                time.sleep(0.1)
-                if not self.channel.recv_ready():
-                    break
+                time.sleep(0.5)
         
+        self.log(f"Command output length: {len(output)}")
         return output
 
-    def check_port_onts(self, frame: str, slot: str, port: str) -> Dict:
+    def check_port_onts(self, frame: str, slot: str, port: str) -> List[Dict]:
         """Check all ONTs in a specific port."""
-        # Comando para listar ONTs da porta
-        list_command = f"display ont info summary {frame}/{slot}/{port}"
-        list_output = self.execute_command(list_command)
-        self.log(f"LIST OUTPUT:\n{list_output}")
+        try:
+            command = f"display ont info summary {frame}/{slot}/{port}"
+            output = self.execute_command(command)
+            self.log(f"OUTPUT:\n{output}")
 
-        port_info = {
-            'port_info': {
-                'frame': frame,
-                'slot': slot,
-                'port': port,
-                'total_onts': 0,
-                'online_onts': 0,
-                'onts': []
-            }
-        }
-
-        # Parse total ONTs information
-        total_pattern = r'the total of ONTs are:\s*(\d+),\s*online:\s*(\d+)'
-        total_match = re.search(total_pattern, list_output)
-        if total_match:
-            port_info['port_info']['total_onts'] = int(total_match.group(1))
-            port_info['port_info']['online_onts'] = int(total_match.group(2))
-
-        # Parse Status information (second part)
-        status_pattern = re.compile(
-            r'(\d+)\s+'           # ONT ID
-            r'(\w+)\s+'           # Run State
-            r'([\d-]+\s+[\d:]+)\s+'  # Last UpTime
-            r'([\d-]+\s+[\d:]+)\s+'  # Last DownTime
-            r'([^\n]+)'           # Last DownCause
-            , re.MULTILINE
-        )
-
-        # Parse Details information (third part)
-        details_pattern = re.compile(
-            r'(\d+)\s+'           # ONT ID
-            r'(\w+)\s+'           # SN
-            r'([^\s]+)\s+'        # Type
-            r'(\d+)\s+'           # Distance
-            r'([^/]+)/([^\s]+)\s+'  # Rx/Tx power
-            r'(.+?)\s*$'          # Description
-            , re.MULTILINE
-        )
-
-        # Create dictionaries for both parts
-        status_info = {}
-        for match in status_pattern.finditer(list_output):
-            ont_id = match.group(1)
-            status_info[ont_id] = {
-                'run_state': match.group(2),
-                'last_up_time': match.group(3),
-                'last_down_time': match.group(4),
-                'last_down_cause': match.group(5).strip()
-            }
-
-        # Combine information
-        for match in details_pattern.finditer(list_output):
-            ont_id = match.group(1)
-            ont_status = status_info.get(ont_id, {})
+            ont_list = []
             
-            ont_info = {
-                'frame': frame,
-                'slot': slot,
-                'port': port,
-                'ont_id': ont_id,
-                'serial_number': match.group(2),
-                'type': match.group(3),
-                'distance': f"{match.group(4)}m",
-                'optical': {
-                    'rx': f"{match.group(5).strip()} dBm",
-                    'tx': f"{match.group(6).strip()} dBm"
-                },
-                'description': match.group(7).strip(),
-                'status': {
-                    'run_state': ont_status.get('run_state', ''),
-                    'last_up_time': ont_status.get('last_up_time', ''),
-                    'last_down_time': ont_status.get('last_down_time', ''),
-                    'last_down_cause': ont_status.get('last_down_cause', '')
-                }
-            }
+            # Capturando as seções
+            status_lines = []
+            details_lines = []
+            current_section = None
             
-            port_info['port_info']['onts'].append(ont_info)
+            for line in output.split('\n'):
+                if 'ONT  Run     Last' in line:
+                    current_section = 'status'
+                    continue
+                elif 'ONT        SN        Type' in line:
+                    current_section = 'details'
+                    continue
+                    
+                if current_section == 'status' and re.match(r'^\s*\d+\s+\w+\s+', line):
+                    status_lines.append(line)
+                elif current_section == 'details' and re.match(r'^\s*\d+\s+[A-F0-9]+\s+', line):
+                    details_lines.append(line)
 
-        return port_info
+            # Processando status
+            status_dict = {}
+            status_pattern = re.compile(r'^\s*(\d+)\s+(\w+)\s+([\d-]+\s+[\d:]+)\s+([\d-]+\s+[\d:]+)\s+(.+?)\s*$')
+            
+            for line in status_lines:
+                match = status_pattern.match(line)
+                if match:
+                    ont_id = match.group(1)
+                    status_dict[ont_id] = {
+                        'run_state': match.group(2),
+                        'last_up_time': match.group(3).strip(),
+                        'last_down_time': match.group(4).strip(),
+                        'last_down_cause': match.group(5).strip()
+                    }
+
+            # Processando detalhes
+            details_pattern = re.compile(
+                r'^\s*(\d+)\s+'           # ONT ID
+                r'([A-F0-9]+)\s+'         # SN
+                r'([^\s]+)\s+'            # Type
+                r'(\d+|\-)\s+'            # Distance
+                r'([^/]+)/([^\s]+)\s+'    # Rx/Tx power
+                r'(.+?)\s*$'              # Description
+            )
+
+            for line in details_lines:
+                match = details_pattern.match(line)
+                if match:
+                    ont_id = match.group(1)
+                    distance = match.group(4)
+                    rx_power = match.group(5).strip()
+                    tx_power = match.group(6).strip()
+
+                    if distance == '-' or rx_power == '-':
+                        distance = '0'
+                        rx_power = '0'
+                        tx_power = '0'
+
+                    ont_info = {
+                        'frame': frame,
+                        'slot': slot,
+                        'port': port,
+                        'ont_id': ont_id,
+                        'serial_number': match.group(2),
+                        'type': match.group(3),
+                        'distance': f"{distance}m",
+                        'optical': {
+                            'rx': f"{rx_power} dBm",
+                            'tx': f"{tx_power} dBm"
+                        },
+                        'description': match.group(7).strip(),
+                        'status': status_dict.get(ont_id, {
+                            'run_state': 'unknown',
+                            'last_up_time': '',
+                            'last_down_time': '',
+                            'last_down_cause': ''
+                        })
+                    }
+                    ont_list.append(ont_info)
+
+            return ont_list
+
+        except Exception as e:
+            self.log(f"Error processing output: {str(e)}")
+            return []
 
     def close(self) -> None:
         """Close SSH connection."""
-        if self.channel:
+        if hasattr(self, 'channel') and self.channel:
             self.channel.close()
-        self.client.close()
+        if hasattr(self, 'client') and self.client:
+            self.client.close()
         self.log("Connection closed")
-
-def handle_output(results: Dict) -> None:
-    """Format and print the results."""
-    def clean_dict(d):
-        if isinstance(d, dict):
-            return {k: clean_dict(v) for k, v in d.items() 
-                   if v not in (None, "", {}, [])}
-        elif isinstance(d, list):
-            return [clean_dict(i) for i in d if i not in (None, "", {}, [])]
-        return d
-        
-    cleaned_results = clean_dict(results)
-    if not cleaned_results:
-        cleaned_results = {
-            "error": {
-                "message": "No ONTs found in this port",
-                "type": "NoDataError"
-            }
-        }
-    print(json.dumps(cleaned_results, indent=2, ensure_ascii=False))
 
 def main():
     parser = argparse.ArgumentParser(description='Huawei ONT List Checker')
@@ -209,16 +217,27 @@ def main():
     parser.add_argument('--password', required=True, help='SSH password')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     
-    args = parser.parse_args()
+    # Capture a saída de erro para stderr
+    def error_response(message: str, error_type: str = "Error") -> None:
+        print(json.dumps({
+            "error": {
+                "message": message,
+                "type": error_type
+            }
+        }, indent=2))
+        sys.exit(1)
     
-    checker = ONTListChecker(
-        host=args.host,
-        username=args.username,
-        password=args.password,
-        verbose=args.verbose
-    )
+    args = parser.parse_args()
+    checker = None
     
     try:
+        checker = ONTListChecker(
+            host=args.host,
+            username=args.username,
+            password=args.password,
+            verbose=args.verbose
+        )
+        
         checker.connect()
         
         results = checker.check_port_onts(
@@ -227,18 +246,25 @@ def main():
             port=args.port
         )
         
-        handle_output(results)
+        if not results:
+            # Se não encontrou resultados, retorna lista vazia mas não erro
+            print(json.dumps([], indent=2))
+        else:
+            # Imprime o JSON formatado no stdout
+            print(json.dumps(results, indent=2, ensure_ascii=False))
         
+    except paramiko.AuthenticationException:
+        error_response("Falha na autenticação. Verifique usuário e senha.", "AuthenticationError")
+    except paramiko.SSHException as e:
+        error_response(f"Erro de SSH: {str(e)}", "SSHError")
     except Exception as e:
-        print(json.dumps({
-            "error": {
-                "message": str(e),
-                "type": e.__class__.__name__
-            }
-        }), file=sys.stderr)
-        sys.exit(1)
+        error_response(str(e), e.__class__.__name__)
     finally:
-        checker.close()
+        if checker:
+            try:
+                checker.close()
+            except:
+                pass
 
 if __name__ == '__main__':
     main()

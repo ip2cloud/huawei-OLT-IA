@@ -57,7 +57,7 @@ COMMAND=$1
 
 # Define o script Python baseado no comando
 case $COMMAND in
-    "reset"|"status")
+    "reset")
         if [ "$#" -lt 8 ]; then
             print_message "$RED" "Erro: Argumentos insuficientes para o comando $COMMAND"
             show_help
@@ -95,9 +95,8 @@ case $COMMAND in
             print_message "$GREEN" "Port: $PORT"
             print_message "$GREEN" "ONT: $ONT"
             
-            PYTHON_SCRIPT="/app/manager/src/huawei_ont_manager.py"
-            
-            python "$PYTHON_SCRIPT" \
+            # Script específico para reset
+            python /app/manager/src/huawei_ont_manager.py \
                 --mode single \
                 --host "$HOST" \
                 --frame "$FRAME" \
@@ -132,9 +131,99 @@ case $COMMAND in
             print_message "$GREEN" "Slot: $SLOT"
             print_message "$GREEN" "ONTs: $ONTS"
             
-            PYTHON_SCRIPT="/app/manager/src/huawei_ont_manager.py"
+            # Script específico para reset
+            python /app/manager/src/huawei_ont_manager.py \
+                --mode batch \
+                --host "$HOST" \
+                --frame "$FRAME" \
+                --slot "$SLOT" \
+                --onts "$ONTS" \
+                --username "$USERNAME" \
+                --password "$PASSWORD" \
+                $VERBOSE_FLAG
+        else
+            print_message "$RED" "Modo inválido: use -o para única ONT ou -l para lote"
+            show_help
+            exit 1
+        fi
+        ;;
+        
+    "status")
+        if [ "$#" -lt 8 ]; then
+            print_message "$RED" "Erro: Argumentos insuficientes para o comando $COMMAND"
+            show_help
+            exit 1
+        fi
+        
+        MODE=$2
+        HOST=$3
+        FRAME=$4
+        SLOT=$5
+        
+        if [ "$MODE" == "-o" ]; then
+            # Modo única ONT
+            if [ "$#" -lt 9 ]; then
+                print_message "$RED" "Erro: Argumentos insuficientes para modo única ONT"
+                show_help
+                exit 1
+            fi
             
-            python "$PYTHON_SCRIPT" \
+            PORT=$6
+            ONT=$7
+            USERNAME=$8
+            PASSWORD=$9
+            VERBOSE_FLAG=""
+            
+            # Verifica se existe um argumento verbose
+            if [ "${10}" == "-v" ] || [ "${10}" == "--verbose" ]; then
+                VERBOSE_FLAG="--verbose"
+            fi
+            
+            print_message "$YELLOW" "Executando $COMMAND de ONT única..."
+            print_message "$GREEN" "Host: $HOST"
+            print_message "$GREEN" "Frame: $FRAME"
+            print_message "$GREEN" "Slot: $SLOT"
+            print_message "$GREEN" "Port: $PORT"
+            print_message "$GREEN" "ONT: $ONT"
+            
+            # Script específico para status
+            python /app/manager/src/huawei_ont_status.py \
+                --mode single \
+                --host "$HOST" \
+                --frame "$FRAME" \
+                --slot "$SLOT" \
+                --port "$PORT" \
+                --ont "$ONT" \
+                --username "$USERNAME" \
+                --password "$PASSWORD" \
+                $VERBOSE_FLAG
+                
+        elif [ "$MODE" == "-l" ]; then
+            # Modo lote
+            if [ "$#" -lt 8 ]; then
+                print_message "$RED" "Erro: Argumentos insuficientes para modo lote"
+                show_help
+                exit 1
+            fi
+            
+            ONTS=$6
+            USERNAME=$7
+            PASSWORD=$8
+            VERBOSE_FLAG=""
+            
+            # Verifica se existe um argumento verbose
+            if [ "${9}" == "-v" ] || [ "${9}" == "--verbose" ]; then
+                VERBOSE_FLAG="--verbose"
+            fi
+            
+            print_message "$YELLOW" "Executando $COMMAND em lote..."
+            print_message "$GREEN" "Host: $HOST"
+            print_message "$GREEN" "Frame: $FRAME"
+            print_message "$GREEN" "Slot: $SLOT"
+            print_message "$GREEN" "ONTs: $ONTS"
+            
+            # Script específico para status
+            python /app/manager/src/huawei_ont_status.py \
                 --mode batch \
                 --host "$HOST" \
                 --frame "$FRAME" \
@@ -175,7 +264,7 @@ case $COMMAND in
         print_message "$GREEN" "Slot: $SLOT"
         print_message "$GREEN" "Port: $PORT"
         
-        # Chama o script Python de lista
+        # Script específico para listagem
         python /app/manager/src/huawei_ont_list.py \
             --host "$HOST" \
             --frame "$FRAME" \
